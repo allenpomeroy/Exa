@@ -19,7 +19,7 @@
 # 
 # Copyright 2023, Allen Pomeroy - MIT license
 #
-# v1.5
+# v1.6
 # - add error trapping for queries and syslog setup
 # - add ability to specify variable number of syslog dest
 # - add blacklist to exclude arbitrary users or assets
@@ -84,9 +84,9 @@ try:
     lock_file = open(lockfile, "w")
     fcntl.lockf(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
     if (debuglevel > 0):
-      print(__file__ + ' starting, lock successfully acquired')
+      print('INFO: ' + __file__ + ' starting, lock successfully acquired')
 except IOError as e:
-    print("Another instance of the program is already running.")
+    print("ERROR: Another instance of the program is already running.")
     exit(1)
 
 
@@ -120,9 +120,9 @@ class SSLSysLogHandler(logging.handlers.SysLogHandler):
             raise
         except ConnectionRefusedError as e:
             # handle ConnectionRefusedError
-            print(f"Connection refused for syslog destination {self.host}:{self.port}: {e}")
+            print(f"WARNING: Connection refused for syslog destination {self.host}:{self.port}: {e}")
         except Exception as e:
-            print(f"Error encountered with syslog destination {self.host}:{self.port}: {e}")
+            print(f"ERROR: Error encountered with syslog destination {self.host}:{self.port}: {e}")
             # handle other exceptions
             self.handleError(record)
 
@@ -163,13 +163,13 @@ for i in range(1, num_destinations+1):
         syslog_handler.setFormatter(formatter)
         logger.addHandler(syslog_handler)
         if (debuglevel > 1):
-          print(f"Connection setup for syslog destination {host}:{port}")
+          print(f"INFO: Connection setup for syslog destination {host}:{port}")
     except ConnectionRefusedError as e:
         # handle ConnectionRefusedError during setup
-        print(f"Connection refused during setup of syslog destination {host}:{port}: {e}")
+        print(f"WARNING: Connection refused during setup of syslog destination {host}:{port}: {e}")
     except Exception as e:
         # handle other exceptions
-        print(f"Error encountered during setup of syslog destination {host}:{port}: {e}")
+        print(f"ERROR: Error encountered during setup of syslog destination {host}:{port}: {e}")
 
 
 # =====
@@ -181,7 +181,7 @@ for i in range(1, num_destinations+1):
 
 # =====
 # log our startup
-msg = "starting query of " + envname + " .. heartbeat"
+msg = "INFO: Starting query of " + envname + " .. heartbeat"
 print(msg)
 logger.info(msg)
 
@@ -206,13 +206,14 @@ except FileNotFoundError:
 # =====
 # setup datetime strings - query last 15 minutes
 now = datetime.datetime.now()
-#pastTime = now - datetime.timedelta(days=2)
-pastTime = now - datetime.timedelta(hours=1)
+#pastTime = now - datetime.timedelta(days=1)
+#pastTime = now - datetime.timedelta(hours=1)
+pastTime = now - datetime.timedelta(minutes=30)
 startTime = pastTime.isoformat() + 'Z'
 endTime = now.isoformat() + 'Z'
 
 if (debuglevel > 0):
-  print("query startTime: " + str(startTime) + " endTime: " + str(endTime))
+  print("DEBUG: Query startTime: " + str(startTime) + " endTime: " + str(endTime))
 
 
 # =====
@@ -237,11 +238,11 @@ headers = {
 #}
 
 if (debuglevel > 1):
-  print("getting auth token")
+  print("DEBUG: getting auth token")
 
 response = requests.post(exaauthurl, json=payload, headers=headers)
 if (debuglevel > 4):
-  print(response.text)
+  print("DEBUG: " + response.text)
 # load the response JSON data into a dictionary
 response_text = json.loads(response.text)
 
@@ -249,8 +250,8 @@ response_text = json.loads(response.text)
 session_token = response_text['access_token']
 token_type = response_text['token_type']
 if (debuglevel > 2):
-  print("session token: " + session_token)
-  print("token type: " + token_type)
+  print("DEBUG: Session token: " + session_token)
+  print("DEBUG: Token type: " + token_type)
 
 
 # =====
@@ -262,7 +263,7 @@ if (debuglevel > 2):
 unique_session_ids = set()
 
 if (debuglevel > 0):
-  print("loading state from flatfile")
+  print("DEBUG: Loading state from flatfile")
 
 # load previous state from flat file - config file 
 if os.path.exists(sessionstatefile):
@@ -291,8 +292,10 @@ payload = {
     "distinct": False,
     "startTime": startTime,
     "endTime": endTime,
-    "filter": "vendor:\"Exabeam\" AND activity_type:\"alert-trigger\""
+    "filter": "vendor:\"Exabeam\" AND activity_type:\"alert-trigger\" AND NOT session_id:null"
 }
+#    "filter": "vendor:\"Exabeam\" AND activity_type:\"alert-trigger\""
+#    "filter": "vendor:\"Exabeam\" AND activity_type:\"alert-trigger\" AND NOT product:\"Correlation Rule\""
 
 headers = {
     "accept": "application/json",
@@ -302,7 +305,7 @@ headers = {
 
 # perform API query with session token
 if (debuglevel > 0):
-  print("performing data query")
+  print("DEBUG: Performing data query")
 
 # TODO - add try block to catch requests.post failure
 response = requests.post(exasearchurl, json=payload, headers=headers)
@@ -316,19 +319,21 @@ if response.status_code == 200:
     for row in data.get("rows", []):
         session_id = row.get("session_id")
         identifier = session_id.split('-')[0]
+        if (debuglevel > 4):
+            print("DEBUG: session_id: " + str(session_id) + " identifier: " + str(identifier))
         if session_id not in unique_session_ids and identifier not in blacklist:
             unique_session_ids.add(session_id)
             if (debuglevel > 0):
-              print("new session_id found " + session_id)
+              print("DEBUG: New session_id found " + session_id)
 
             # send unique session_id to destination via syslog TLS
             # since session_url may not be reliably parsed, send rawlog for
             # destination to parse out .. otherwise, build string to send first
             rawlog = row.get("rawLogs")
             if (debuglevel > 3):
-              print("sending syslog: new session_id: " + session_id)
+              print("DEBUG: Sending syslog: new session_id: " + session_id)
             if (debuglevel > 4):
-              print("row: " + str(row))
+              print("DEBUG: Sending: " + str(rawlog))
             #logger.info(str(row))
             logger.info(rawlog)
             # add sleep for rate limit
@@ -339,16 +344,19 @@ if response.status_code == 200:
                 timestamp_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 f.write(f"{session_id},{timestamp_str}\n")
                 if (debuglevel > 3):
-                  print("wrote state for new session_id: " + session_id)
+                  print("DEBUG: Wrote state for new session_id: " + session_id)
+        elif session_id in unique_session_ids:
+          if (debuglevel > 0):
+            print("DEBUG: Skipping previously seen session_id " + session_id)
         elif identifier in blacklist:
           if (debuglevel > 0):
-            print("new session_id skipped due to blacklist " + session_id)
+            print("DEBUG: Skipping blacklisted identifier in session_id " + session_id)
 
 
 else:
     # handle API request failure
-    print("Query API request failed: " + str(response.status_code))
-    logger.error("Query API request failed: " + str(response.status_code))
+    print("ERROR: Query API request failed: " + str(response.status_code))
+    logger.error("ERROR: Query API request failed: " + str(response.status_code))
 
 
 # =====
@@ -356,7 +364,7 @@ else:
 
 # remove session_id entries older than one week from flat file
 if (debuglevel > 0):
-  print("cleaning up old entries from statefile")
+  print("DEBUG: Cleaning up old entries from statefile")
 # ensure statefile exists - create empty if not
 open(sessionstatefile, 'a').close()
 with open(sessionstatefile, "r") as f:
