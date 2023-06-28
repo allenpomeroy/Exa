@@ -20,6 +20,7 @@
 # Copyright 2023, Allen Pomeroy - MIT license
 #
 # v1.6
+# - add configurable lookbacktime for poll
 # - add error trapping for queries and syslog setup
 # - add ability to specify variable number of syslog dest
 # - add blacklist to exclude arbitrary users or assets
@@ -64,6 +65,7 @@ config.read('notable-poll.conf')
 # get config items
 num_destinations = int(config.get('syslogdata', 'num_destinations'))
 #
+lookbacktime = config.get('exabeam', 'lookbacktime')
 exaauthurl = config.get('exabeam', 'authurl')
 exasearchurl = config.get('exabeam', 'searchurl')
 envname = config.get('exabeam', 'envname')
@@ -204,14 +206,19 @@ except FileNotFoundError:
 
 
 # =====
-# setup datetime strings - query last 15 minutes
+# setup datetime strings - query back last x time specified by lookbacktime
 now = datetime.datetime.now()
-#pastTime = now - datetime.timedelta(days=1)
-#pastTime = now - datetime.timedelta(hours=1)
-pastTime = now - datetime.timedelta(minutes=30)
+
+lookbackparts = lookbacktime.split("=")
+timeunit = lookbackparts[0].strip(' "')
+timevalue = int(lookbackparts[1].strip(' "'))
+
+deltaString = f"datetime.timedelta({timeunit}={timevalue})"
+deltaTime = eval(deltaString)
+pastTime = now - deltaTime
+
 startTime = pastTime.isoformat() + 'Z'
 endTime = now.isoformat() + 'Z'
-
 if (debuglevel > 0):
   print("DEBUG: Query startTime: " + str(startTime) + " endTime: " + str(endTime))
 
