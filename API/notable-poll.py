@@ -17,6 +17,11 @@
 #
 # All configuration is done through a configuration file
 # "notable-poll.conf" in INI format.
+#
+# Typical use in crontab:
+# m h  dom mon dow   command
+#0,15,30,45 * * * * cd /home/exabeam/notable-poll; /home/exabeam/notable-poll/notable-poll.py >/home/exabeam/notable-poll/notable-poll.log 2>&1
+#
 # 
 # Copyright 2023, Allen Pomeroy - MIT license
 #
