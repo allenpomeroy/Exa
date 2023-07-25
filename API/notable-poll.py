@@ -3,9 +3,10 @@
 # notable-poll.py
 #
 # Uses Search API calls to an Exabeam NewScale(tm) tenant
-# to find Notable User and Notable Asset instances. Keeps
-# track of notable sessions found and sends any new sessions
-# to a configurable number of syslog TLS destinations.
+# to find Notable User and Notable Asset notification events.
+# Keeps track of notable sessions found and sends any new
+# sessions discovered since the last poll to a configurable
+# number of syslog TLS destinations.
 #
 # Currently only polls a single Exabeam tenant per configuration
 # file, however allows a variable number of syslog TLS
@@ -19,7 +20,7 @@
 # 
 # Copyright 2023, Allen Pomeroy - MIT license
 #
-# v1.6
+# v1.7
 # - add configurable lookbacktime for poll
 # - add error trapping for queries and syslog setup
 # - add ability to specify variable number of syslog dest
@@ -35,11 +36,19 @@
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 # ===============================================================
-# This script is NOT supported or endorsed by Exabeam in any way.
-# It is only provided to illustrate an example of what may be accomplished
-# with the Exabeam NewScale Security Operations Platform APIs.
-# Please DO NOT contact Exabeam customer success with any questions or requests for assistance.
+# NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE
 # ===============================================================
+# This script is NOT supported or endorsed by Exabeam in any way.
+# It is only provided to illustrate an example of what may be
+# accomplished with the Exabeam NewScale Security Operations
+# Platform APIs.
+# ===============================================================
+# Please DO NOT contact Exabeam customer success with any questions
+# or requests for assistance.  You may contact the author however
+# only best efforts can be made to respond or accomodate change
+# requests.
+# ===============================================================
+
 
 # =====
 # imports and packages
@@ -88,7 +97,7 @@ try:
     if (debuglevel > 0):
       print('INFO: ' + __file__ + ' starting, lock successfully acquired')
 except IOError as e:
-    print("ERROR: Another instance of the program is already running.")
+    print("ERROR: Another instance of the program is already running or failed to get lock file.")
     exit(1)
 
 
@@ -175,13 +184,6 @@ for i in range(1, num_destinations+1):
 
 
 # =====
-# sample syslog msg send statements
-#logger.info("Hello, syslog!")
-#logger.warning("This is a warning.")
-#logger.error("An error occurred.")
-
-
-# =====
 # log our startup
 msg = "INFO: Starting query of " + envname + " .. heartbeat"
 print(msg)
@@ -226,6 +228,10 @@ if (debuglevel > 0):
 # =====
 # use api key and secret to generate token
 
+# contact Exabeam tenant administrator or local Exabeam contact to obtain
+# correct authorization and query URLs.  these are specific to region
+# customer tenant is located within
+
 # exaauthurl, authkey and authsecret are read from config file
 payload = {
     "grant_type": "client_credentials",
@@ -245,8 +251,9 @@ headers = {
 #}
 
 if (debuglevel > 1):
-  print("DEBUG: getting auth token")
+  print("DEBUG: getting authorization token")
 
+# get authorization token
 response = requests.post(exaauthurl, json=payload, headers=headers)
 if (debuglevel > 4):
   print("DEBUG: " + response.text)
@@ -263,7 +270,6 @@ if (debuglevel > 2):
 
 # =====
 # use auth token to perform events query
-
 
 # =====
 # initialize empty set for tracking unique session_ids
@@ -286,13 +292,15 @@ if os.path.exists(sessionstatefile):
 # =====
 # prepare for search query
 #
-# testing - specify fields to be returned
-# we need the query to reference fields that exist
-# .. careful with custom fields  c_  , if they don't exist,
+# specify fields are to be returned
+# currently we need the query to reference fields that exist
+# .. caution should be taken with custom fields  c_  .. if they don't exist,
 # .. response will likely return a 400
 #
-# "fields": ["user", "session_id", "original_risk_score", "approxLogTime", "c_session_url", "c_top_reasons"],
-# "filter": "vendor:\"Exabeam\" AND NOT c_session_url:null"
+# the only "fields" needed are the user, session_id and raw message.
+# since session_url may not be parsed we will pass the raw message to each
+# destination so any parsing needed is handled by the destination system
+#
 payload = {
     "fields": ["user", "session_id", "rawLogs"],
     "limit": 3000,
@@ -301,8 +309,6 @@ payload = {
     "endTime": endTime,
     "filter": "vendor:\"Exabeam\" AND activity_type:\"alert-trigger\" AND NOT session_id:null"
 }
-#    "filter": "vendor:\"Exabeam\" AND activity_type:\"alert-trigger\""
-#    "filter": "vendor:\"Exabeam\" AND activity_type:\"alert-trigger\" AND NOT product:\"Correlation Rule\""
 
 headers = {
     "accept": "application/json",
@@ -369,7 +375,8 @@ else:
 # =====
 # clean up
 
-# remove session_id entries older than one week from flat file
+# remove session_id entries older than one week from flat file .. keep sent session_id
+# for troubleshooting and performance validation
 if (debuglevel > 0):
   print("DEBUG: Cleaning up old entries from statefile")
 # ensure statefile exists - create empty if not
