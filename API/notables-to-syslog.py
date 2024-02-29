@@ -23,7 +23,7 @@
 #
 # Typical use in crontab:
 # m h  dom mon dow   command
-#0,15,30,45 * * * * cd /home/exabeam/notables-to-syslog; /home/exabeam/notables-to-syslog/notables-to-syslog.py >/home/exabeam/notables-to-syslog/notable-poll-syslog.log 2>&1
+#0,15,30,45 * * * * cd /home/exabeam/notables; /home/exabeam/notables/notables-to-syslog.py >/home/exabeam/notables/0-cron.log 2>&1
 #
 #
 # Copyright 2023, Allen Pomeroy - MIT license
@@ -74,10 +74,10 @@ import json
 import requests
 import time
 import os
-#import datetime
 import fcntl
 import re
 from requests.auth import HTTPBasicAuth
+#import datetime
 from datetime import datetime, timedelta
 from dateutil import parser
 
@@ -91,7 +91,7 @@ def print_message(mindebuglevel, messagelevel, severity, message):
         msgTimestamp = now.isoformat()
         
         if severity == 'DEBUG':
-            formatted_msg = f"{msgTimestamp} {severity}{messagelevel}: {message}"
+            formatted_msg = f"{msgTimestamp}   {severity}{messagelevel}: {message}"
         else:
             formatted_msg = f"{msgTimestamp} {severity}: {message}"
 
