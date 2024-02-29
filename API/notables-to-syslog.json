@@ -1,0 +1,36 @@
+{
+	"global": {
+		"_description": "notables-to-syslog.json",
+		"_version": "1.10",
+		"scriptRoot": "/home/example/notables-to-syslog",
+		"disableAll": "False",
+		"lockFile": "lockfile",
+		"logFile": "notables.log",
+		"_maxdebuglevel": 10,
+		"_recommendedDebugLevelIs2":"",
+		"debuglevel": 1
+	},
+	"lab2-10001": {
+		"id":"lab2-10001",
+		"customerName": "Lab 2",
+		"region": "us-west",
+		"authUrl": "https://api.example.cloud/auth/v2/token", 
+		"searchUrl": "https://api.example.cloud/search/v3/events",
+		"authKey": "UGT3q",
+		"authSecret": "0n1",
+		"lookbackTime": "minutes=15",
+		"customerEcpUrl": "https://partnerlab2.us1.example.cloud",
+		"customerAAUrl": "https://partnerlab2.example.com",
+		"sessionFile": "session-ids.txt",
+		"blocklistFile": "blocklist.txt",
+                "tokenCacheFile": "tokencache.json",
+		"syslogDestCount": 1,
+		"syslog1FQDN": "dev.example.com",
+		"syslog1Port": "32515",
+		"syslog2FQDN": "dev.example.com",
+		"syslog2Port": "6514",
+		"debuglevel": 0,
+		"testFlag": "False",
+		"disable": "False"
+	}
+}
