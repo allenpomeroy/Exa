@@ -2,7 +2,7 @@
 #
 # notables-to-syslog.py
 #
-# v1.10
+# v1.11
 # - update to use cached auth token until expiry
 #
 # Uses Search API calls to an Exabeam NewScale(tm) tenant
@@ -77,7 +77,6 @@ import os
 import fcntl
 import re
 from requests.auth import HTTPBasicAuth
-#import datetime
 from datetime import datetime, timedelta
 from dateutil import parser
 
@@ -211,13 +210,6 @@ def fetch_new_token(customer_key):
     token_type = response_text['token_type']
     expires_in = response_text['expires_in']
 
-    #print_message(debuglevel, 4, "DEBUG", "access token: " + access_token)
-    #print_message(debuglevel, 3, "DEBUG", "token type: " + token_type)
-    #print_message(debuglevel, 3, "DEBUG", "token expires: " + expires_in)
-
-#        now = datetime.datetime.now()
-    
-
     new_token_data = {
         "access_token": access_token,
         "token_type": token_type,
@@ -230,7 +222,8 @@ def fetch_new_token(customer_key):
     print_message(debuglevel, 3, "DEBUG", str(new_token_data))
     write_token_cache(customer_key,new_token_data)
     return new_token_data
-    
+
+# customer instance management
 def get_keys(json_object, parent_key=''):
     keys_list = []
     if isinstance(json_object, dict):
@@ -414,7 +407,7 @@ if __name__ == "__main__":
         configure_syslog_destinations(customer_config, logger, ssl_context, debuglevel)
 
         #
-        # new token auth logic
+        # token auth logic
         token_data = read_token_cache(customer_config)
         
         if not token_data or is_token_expired(token_data):
@@ -425,7 +418,6 @@ if __name__ == "__main__":
 
         access_token = token_data["access_token"]
         token_type = token_data["token_type"]
-        
         
         
         # =====
@@ -446,31 +438,22 @@ if __name__ == "__main__":
             pass
 
 
-
         # ===
         # setup date range for this customer tenant
 
         # setup datetime strings - query back last x time specified by lookbacktime
-        #now = datetime.datetime.now()
-        #now = datetime.datetime.now()
         now = datetime.now()
 
         lookbackparts = lookbackTime.split("=")
         timeunit = lookbackparts[0].strip(' "')
         timevalue = int(lookbackparts[1].strip(' "'))
 
-#        deltaString = f"datetime.timedelta({timeunit}={timevalue})"
-#        deltaTime = eval(deltaString)
         deltaTime = timedelta(**{timeunit: timevalue})
         pastTime = now - deltaTime
 
         startTime = pastTime.isoformat() + 'Z'
         endTime = now.isoformat() + 'Z'
         print_message(debuglevel, 2, "INFO", "query startTime: " + str(startTime) + " endTime: " + str(endTime))
-
-
-# OLD token code
-
 
 
         # =====
@@ -486,13 +469,9 @@ if __name__ == "__main__":
                 lines = f.readlines()
                 for line in lines:
                     session_id, timestamp_str = line.strip().split(",")
-                    #timestamp = datetime.datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
                     timestamp = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
-                    #if datetime.datetime.now() - timestamp < datetime.timedelta(weeks=1):
-                    #if datetime.now() - timestamp < datetime.timedelta(weeks=1):
                     if datetime.now() - timestamp < timedelta(weeks=1):
                         unique_session_ids.add(session_id)
-
 
 
         # =====
@@ -541,7 +520,7 @@ if __name__ == "__main__":
                 print_message(debuglevel, 4, "DEBUG",  "session_id: " + str(session_id) + " identifier: " + str(identifier))
                 if session_id not in unique_session_ids and identifier not in blocklist:
                     unique_session_ids.add(session_id)
-                    print_message(debuglevel, 1, "INFO", "New session_id found " + session_id)
+                    print_message(debuglevel, 1, "INFO", ">>> New session_id found " + session_id)
         
                     # send unique session_id to destination via webhook
                     # since session_url may not be reliably parsed, send rawlog for
@@ -556,20 +535,12 @@ if __name__ == "__main__":
                     if not customer_name:
                         print_message(debuglevel, 0, "WARNING", "no customer name found for customerId " + customerId)
                         customer_name = "NotFound"
-                    #else:
-                    #    print("customer id found: " + looked_up_customer_id)
-                    #    # get auth token for url via customer id
-                    #    newauthtoken = get_value(config, looked_up_customer_id, "authKey")
-                    #    print("new auth token looked up: " + newauthtoken)
-
 
                     # notable line
                     # id="afranklin-20230803160526" url="https://partnerlab2.aa.exabeam.com/uba/#user/#user/afranklin/timeline/afranklin-20230803160526" score="91" start_time="2023-08-03T16:05:26Z" end_time="Ongoing" status="open" user="afranklin" src_host="osx-2212-afran" src_ip="192.168.24.3" accounts="afranklin" labels="" assets="" zones="" top_reasons="Risk transfer from past sessions., This is an occurrence of this DLP alert name for the user, This is an occurrence of USB write alert for the user" reasons_count="3" events_count="1" alerts_count="0" sequence_type="session"
 
                     # could extract strings from rawlog in order to pre-parse for
                     # a destination system
-
-
 
                     print_message(debuglevel, 3, "DEBUG", "making syslog call with data: " + str(rawlog))
 
@@ -588,10 +559,10 @@ if __name__ == "__main__":
                         print_message(debuglevel, 4, "DEBUG", "Wrote state for new session_id: " + session_id)
 
                 elif session_id in unique_session_ids:
-                    print_message(debuglevel, 1, "INFO", "skipping previously seen session_id " + session_id)
+                    print_message(debuglevel, 1, "INFO", ">>> Skipping previously seen session_id " + session_id)
 
                 elif identifier in blocklist:
-                    print_message(debuglevel, 1, "INFO", "skipping blocklisted identifier in session_id " + session_id)
+                    print_message(debuglevel, 1, "INFO", ">>> Skipping blocklisted identifier in session_id " + session_id)
         
         
         else:
