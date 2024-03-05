@@ -2,6 +2,8 @@
 #
 # notables-to-syslog.py
 #
+# v1.12
+# - cleaned up debug / informational message levels
 # v1.11
 # - update to use cached auth token until expiry
 #
@@ -328,7 +330,7 @@ if __name__ == "__main__":
     try:
         lock_file = open(lockFile, "w")
         fcntl.lockf(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        print_message(debuglevel, 1, "INFO", "lock successfully acquired")
+        print_message(debuglevel, 3, "INFO", "lock successfully acquired")
     except IOError as e:
         print_message(debuglevel, 0, "FATAL", "another instance is already running or failed to get lock file " + lockFile)
         exit(1)        
@@ -352,7 +354,7 @@ if __name__ == "__main__":
 
 
     # iterate through all customer entries in config file via parent keys
-    print_message(debuglevel, 3, "DEBUG", "loop through parent customer keys")
+    print_message(debuglevel, 4, "DEBUG", "loop through parent customer keys")
     for customerId in parent_keys:
         # reset debuglevel
         debuglevel = globalDebuglevel
@@ -361,7 +363,7 @@ if __name__ == "__main__":
         customer_config = config.get(customerId)
 
         # display customer id
-        print_message(debuglevel, 1, "INFO", "starting customerId: " + customer_config.get('id'))
+        print_message(debuglevel, 1, "INFO", "Starting customerId: " + customer_config.get('id'))
         
         # setup variables for this customer
         customerDebuglevel = int(customer_config.get('debuglevel'))
@@ -386,14 +388,14 @@ if __name__ == "__main__":
         disable = customer_config.get('disable')
 
         # debugging
-        print_message(debuglevel, 3, "DEBUG", "sessionFile: " + sessionFile)
-        print_message(debuglevel, 3, "DEBUG", "lockFile: " + lockFile)
-        print_message(debuglevel, 3, "DEBUG", "logFile: " + logFile)
-        print_message(debuglevel, 3, "DEBUG", "blocklistFile: " + blocklistFile)
+        print_message(debuglevel, 5, "DEBUG", "sessionFile: " + sessionFile)
+        print_message(debuglevel, 5, "DEBUG", "lockFile: " + lockFile)
+        print_message(debuglevel, 5, "DEBUG", "logFile: " + logFile)
+        print_message(debuglevel, 5, "DEBUG", "blocklistFile: " + blocklistFile)
 
         # abort this customer if disable flag
         if disable == "True":
-            print_message(debuglevel, 1, "INFO", "skipping customer instance " + customerId + " - disable flag set")
+            print_message(debuglevel, 0, "WARN", "skipping customer instance " + customerId + " - disable flag set")
             continue;
 
         # check for global flags
@@ -403,7 +405,7 @@ if __name__ == "__main__":
             exit(1)
 
         # configure syslog destinations for this customer
-        print_message(debuglevel, 2, "INFO", "starting syslog destination configuration")
+        print_message(debuglevel, 3, "INFO", "starting syslog destination configuration")
         configure_syslog_destinations(customer_config, logger, ssl_context, debuglevel)
 
         #
@@ -412,9 +414,9 @@ if __name__ == "__main__":
         
         if not token_data or is_token_expired(token_data):
             token_data = fetch_new_token(customer_config)
-            print_message(debuglevel, 2, "INFO", "token refreshed for customer")
+            print_message(debuglevel, 4, "INFO", "token refreshed for customer")
         else:
-            print_message(debuglevel, 2, "INFO", "using cached token for customer")
+            print_message(debuglevel, 4, "INFO", "using cached token for customer")
 
         access_token = token_data["access_token"]
         token_type = token_data["token_type"]
@@ -453,18 +455,18 @@ if __name__ == "__main__":
 
         startTime = pastTime.isoformat() + 'Z'
         endTime = now.isoformat() + 'Z'
-        print_message(debuglevel, 2, "INFO", "query startTime: " + str(startTime) + " endTime: " + str(endTime))
+        print_message(debuglevel, 3, "INFO", "query startTime: " + str(startTime) + " endTime: " + str(endTime))
 
 
         # =====
         # initialize empty set for tracking unique session_ids
         unique_session_ids = set()
         
-        print_message(debuglevel, 2, "INFO", "loading state from flatfile")
+        print_message(debuglevel, 5, "DEBUG", "loading state from flatfile")
         
         # load previous state from flat file - config file
         if os.path.exists(sessionFile):
-            print_message(debuglevel, 5, "DEBUG", "sessionFile " + sessionFile)
+            print_message(debuglevel, 6, "DEBUG", "sessionFile " + sessionFile)
             with open(sessionFile, "r") as f:
                 lines = f.readlines()
                 for line in lines:
@@ -502,7 +504,7 @@ if __name__ == "__main__":
         }
         
         # perform API query with session token
-        print_message(debuglevel, 2, "INFO", "performing data query")
+        print_message(debuglevel, 3, "INFO", "performing data query")
         
         # TODO - add try block to catch requests.post failure
         response = requests.post(searchUrl, json=payload, headers=headers)
@@ -517,7 +519,7 @@ if __name__ == "__main__":
                 session_id = row.get("session_id")
                 risk_score = row.get("original_risk_score")
                 identifier = session_id.split('-')[0]
-                print_message(debuglevel, 4, "DEBUG",  "session_id: " + str(session_id) + " identifier: " + str(identifier))
+                print_message(debuglevel, 4, "DEBUG",  "Found session_id: " + str(session_id) + " identifier: " + str(identifier))
                 if session_id not in unique_session_ids and identifier not in blocklist:
                     unique_session_ids.add(session_id)
                     print_message(debuglevel, 1, "INFO", ">>> New session_id found " + session_id)
@@ -526,14 +528,14 @@ if __name__ == "__main__":
                     # since session_url may not be reliably parsed, send rawlog for
                     # destination to parse out .. otherwise, build string to send first
                     rawlog = row.get("rawLogs")
-                    print_message(debuglevel, 4, "DEBUG", "Sending new session_id: " + session_id)
-                    print_message(debuglevel, 5, "DEBUG", "rawlog: " + str(rawlog))
+                    print_message(debuglevel, 5, "DEBUG", "Sending new session_id: " + session_id)
+                    print_message(debuglevel, 6, "DEBUG", "rawlog: " + str(rawlog))
 
 
                     # 
                     customer_name = get_value(config, customerId, "customerName")
                     if not customer_name:
-                        print_message(debuglevel, 0, "WARNING", "no customer name found for customerId " + customerId)
+                        print_message(debuglevel, 0, "WARN", "no customer name found for customerId " + customerId)
                         customer_name = "NotFound"
 
                     # notable line
@@ -542,7 +544,7 @@ if __name__ == "__main__":
                     # could extract strings from rawlog in order to pre-parse for
                     # a destination system
 
-                    print_message(debuglevel, 3, "DEBUG", "making syslog call with data: " + str(rawlog))
+                    print_message(debuglevel, 6, "DEBUG", "making syslog call with data: " + str(rawlog))
 
                     # send test message to all syslog dest
                     logger.info(rawlog)
@@ -556,7 +558,7 @@ if __name__ == "__main__":
                         #timestamp_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         f.write(f"{session_id},{timestamp_str}\n")
-                        print_message(debuglevel, 4, "DEBUG", "Wrote state for new session_id: " + session_id)
+                        print_message(debuglevel, 5, "DEBUG", "Wrote state for new session_id: " + session_id)
 
                 elif session_id in unique_session_ids:
                     print_message(debuglevel, 1, "INFO", ">>> Skipping previously seen session_id " + session_id)
@@ -575,7 +577,7 @@ if __name__ == "__main__":
         
         # remove session_id entries older than one week from flat file .. keep sent session_id
         # for troubleshooting and performance validation
-        print_message(debuglevel, 2, "INFO", "cleaning up old entries from statefile")
+        print_message(debuglevel, 3, "INFO", "cleaning up old entries from statefile")
 
         # ensure statefile exists - create empty if not
         open(sessionFile, 'a').close()
