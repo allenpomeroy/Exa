@@ -2,7 +2,7 @@
 #
 # notables-to-syslog.py
 #
-# v1.12
+# v1.13
 # - cleaned up debug / informational message levels
 # v1.11
 # - update to use cached auth token until expiry
@@ -15,7 +15,8 @@
 #
 #*****************************************
 # Polls an arbitrary number of Exabeam tenants per configuration
-# file, however only sends to a single JIRA webhook destination.
+# file and sends to configurable number of syslog TLS destinations
+# per tenant.
 # State files are maintained to track unique sessions encountered
 # within each tenant and optionally a blocklist of user or assets
 # to ignore.
