@@ -1,0 +1,9 @@
+# iptables.csv - v1
+event.deviceEventClassId,set.event.categoryObject,set.event.categoryDeviceGroup,set.event.categoryBehavior,set.event.categoryOutcome,set.event.categorySignificance
+antispoof-drop,/Host/Application/Service,/Firewall,/Access/Start,/Failure,/Informational/Warning
+admin-accept,/Host/Application/Service,/Firewall,/Access/Start,/Success,/Normal
+public-accept,/Host/Application/Service,/Firewall,/Access/Start,/Success,/Normal
+recent-blacklist-add,/Host/Application/Service,/Firewall,/Modify/Configuration,/Success,/Normal
+recent-blacklist-drop,/Host/Application/Service,/Firewall,/Access/Start,/Failure,/Informational/Warning
+inbound-drop,/Host/Application/Service,/Firewall,/Access/Start,/Failure,/Informational/Warning
+outbound-accept,/Host/Application/Service,/Firewall,/Access/Start,/Success,/Normal
